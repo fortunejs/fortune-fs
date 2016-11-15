@@ -1,0 +1,36 @@
+{
+  "name": "fortune-fs",
+  "description": "File system adapter for Fortune.",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:fortunejs/fortune-fs.git"
+  },
+  "scripts": {
+    "lint": "eslint lib",
+    "postpublish": "npm run tag",
+    "tag": "git tag `npm v fortune-fs version` && git push origin --tags",
+    "test": "npm run lint && node test.js"
+  },
+  "dependencies": {
+    "mkdirp": "^0.5.1",
+    "msgpack-lite": "^0.1.26"
+  },
+  "devDependencies": {
+    "eslint": "^3.8.1",
+    "eslint-config-boss": "^1.0.4",
+    "fortune": "^5.0.2",
+    "tapdance": "^5.0.2"
+  },
+  "eslintConfig": {
+    "extends": "boss/es5"
+  },
+  "engines": {
+    "node": ">=4.6"
+  },
+  "keywords": [
+    "fs",
+    "adapter"
+  ]
+}
