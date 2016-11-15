@@ -13,7 +13,7 @@ var mkdirp = require('mkdirp')
  */
 module.exports = function (Adapter) {
   var DefaultAdapter = Adapter.DefaultAdapter
-  var map, primaryKey, generateId
+  var map, primaryKey
 
   function FileSystemAdapter (properties) {
     DefaultAdapter.call(this, properties)
@@ -26,7 +26,6 @@ module.exports = function (Adapter) {
 
     primaryKey = properties.common.constants.primary
     map = properties.common.map
-    generateId = properties.common.generateId
   }
 
   FileSystemAdapter.prototype = Object.create(DefaultAdapter.prototype)
@@ -110,12 +109,14 @@ module.exports = function (Adapter) {
 
   FileSystemAdapter.prototype.delete = function (type, ids) {
     var self = this
+    var memoizedIds = ids || Object.keys(self.db[type])
 
-    return writeRecords(
-      path.join(self.options.path, type),
-      ids || Object.keys(self.db[type]))
-    .then(function () {
-      return DefaultAdapter.prototype.delete.call(self, type, ids)
+    return DefaultAdapter.prototype.delete.call(self, type, ids)
+    .then(function (count) {
+      return writeRecords(
+        path.join(self.options.path, type),
+        memoizedIds)
+      .then(function () { return count })
     })
   }
 
