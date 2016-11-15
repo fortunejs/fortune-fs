@@ -1,7 +1,7 @@
 {
   "name": "fortune-fs",
   "description": "File system adapter for Fortune.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -14,6 +14,7 @@
     "test": "npm run lint && node test.js"
   },
   "dependencies": {
+    "lockfile": "^1.0.2",
     "mkdirp": "^0.5.1",
     "msgpack-lite": "^0.1.26"
   },

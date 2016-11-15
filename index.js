@@ -4,6 +4,7 @@ var path = require('path')
 var fs = require('fs')
 var msgpack = require('msgpack-lite')
 var mkdirp = require('mkdirp')
+var lockFile = require('lockfile')
 
 
 /**
@@ -125,18 +126,30 @@ module.exports = function (Adapter) {
   function writeRecords (typeDir, records) {
     return Promise.all(map(records, function (record) {
       return new Promise(function (resolve, reject) {
+        var lockPath
+
         if (record === void 0) return resolve()
 
-        return typeof record === 'object' ?
-          fs.writeFile(
-            path.join(typeDir, '' + record[primaryKey]),
-            msgpack.encode(record),
-            function handle (error) {
-              return error ? reject(error) : resolve()
-            }) :
-          fs.unlink(
-            path.join(typeDir, '' + record),
-            resolve)
+        if (typeof record === 'object') {
+          lockPath = path.join(typeDir, record[primaryKey] + '.lock')
+
+          return lockFile.lock(lockPath, function (error) {
+            if (error) return reject(error)
+
+            fs.writeFile(
+              path.join(typeDir, '' + record[primaryKey]),
+              msgpack.encode(record),
+              function (error) {
+                if (error) return reject(error)
+
+                lockFile.unlock(lockPath, function (error) {
+                  return error ? reject(error) : resolve()
+                })
+              })
+          })
+        }
+
+        fs.unlink(path.join(typeDir, '' + record), resolve)
       })
     }))
   }
