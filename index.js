@@ -102,7 +102,7 @@ module.exports = function (Adapter) {
         path.join(self.options.path, type),
         map(updates, function (update) {
           return self.db[type][update[primaryKey]]
-        }))
+        }), true)
       .then(function () { return count })
     })
   }
@@ -123,7 +123,7 @@ module.exports = function (Adapter) {
 
   return FileSystemAdapter
 
-  function writeRecords (typeDir, records) {
+  function writeRecords (typeDir, records, isLocking) {
     return Promise.all(map(records, function (record) {
       return new Promise(function (resolve, reject) {
         var lockPath
@@ -131,26 +131,37 @@ module.exports = function (Adapter) {
         if (record === void 0) return resolve()
 
         if (typeof record === 'object') {
+          if (!isLocking)
+            return writeRecord(typeDir, record).then(resolve, reject)
+
           lockPath = path.join(typeDir, record[primaryKey] + '.lock')
 
           return lockFile.lock(lockPath, function (error) {
             if (error) return reject(error)
 
-            fs.writeFile(
-              path.join(typeDir, '' + record[primaryKey]),
-              msgpack.encode(record),
-              function (error) {
-                if (error) return reject(error)
-
-                lockFile.unlock(lockPath, function (error) {
-                  return error ? reject(error) : resolve()
-                })
+            writeRecord(typeDir, record)
+            .then(function () {
+              lockFile.unlock(lockPath, function (error) {
+                return error ? reject(error) : resolve()
               })
+            })
           })
         }
 
         fs.unlink(path.join(typeDir, '' + record), resolve)
       })
+
     }))
+  }
+
+  function writeRecord (typeDir, record) {
+    return new Promise(function (resolve, reject) {
+      fs.writeFile(
+        path.join(typeDir, '' + record[primaryKey]),
+        msgpack.encode(record),
+        function (error) {
+          return error ? reject(error) : resolve()
+        })
+    })
   }
 }
