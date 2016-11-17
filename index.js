@@ -95,16 +95,40 @@ module.exports = function (Adapter) {
 
   FileSystemAdapter.prototype.update = function (type, updates) {
     var self = this
+    var typeDir = path.join(self.options.path, type)
+    var count
 
-    return DefaultAdapter.prototype.update.call(this, type, updates)
-    .then(function (count) {
-      return writeRecords(
-        path.join(self.options.path, type),
-        map(updates, function (update) {
-          return self.db[type][update[primaryKey]]
-        }), true)
-      .then(function () { return count })
+    return Promise.all(map(updates, function (update) {
+      return new Promise(function (resolve, reject) {
+        var lockPath = path.join(typeDir, update[primaryKey] + '.lock')
+
+        lockFile.lock(lockPath, function (error) {
+          return error ? reject(error) : resolve()
+        })
+      })
+    }))
+    .then(function () {
+      return DefaultAdapter.prototype.update.call(self, type, updates)
     })
+    .then(function (result) {
+      count = result
+
+      return writeRecords(typeDir, map(updates, function (update) {
+        return self.db[type][update[primaryKey]]
+      }))
+    })
+    .then(function () {
+      return Promise.all(map(updates, function (update) {
+        var lockPath = path.join(typeDir, update[primaryKey] + '.lock')
+
+        return new Promise(function (resolve, reject) {
+          lockFile.unlock(lockPath, function (error) {
+            return error ? reject(error) : resolve()
+          })
+        })
+      }))
+    })
+    .then(function () { return count })
   }
 
 
@@ -123,30 +147,13 @@ module.exports = function (Adapter) {
 
   return FileSystemAdapter
 
-  function writeRecords (typeDir, records, isLocking) {
+  function writeRecords (typeDir, records) {
     return Promise.all(map(records, function (record) {
       return new Promise(function (resolve, reject) {
-        var lockPath
-
         if (record === void 0) return resolve()
 
-        if (typeof record === 'object') {
-          if (!isLocking)
-            return writeRecord(typeDir, record).then(resolve, reject)
-
-          lockPath = path.join(typeDir, record[primaryKey] + '.lock')
-
-          return lockFile.lock(lockPath, function (error) {
-            if (error) return reject(error)
-
-            writeRecord(typeDir, record)
-            .then(function () {
-              lockFile.unlock(lockPath, function (error) {
-                return error ? reject(error) : resolve()
-              })
-            })
-          })
-        }
+        if (typeof record === 'object')
+          return writeRecord(typeDir, record).then(resolve, reject)
 
         fs.unlink(path.join(typeDir, '' + record), resolve)
       })
