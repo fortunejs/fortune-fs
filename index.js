@@ -80,10 +80,9 @@ module.exports = function (Adapter) {
   FileSystemAdapter.prototype.create = function (type, records) {
     var self = this
 
-    return DefaultAdapter.prototype.create.call(self, type, records)
-    .then(function (records) {
-      return writeRecords(path.join(self.options.path, type), records)
-      .then(function () { return records })
+    return writeRecords(path.join(self.options.path, type), records)
+    .then(function () {
+      return DefaultAdapter.prototype.create.call(self, type, records)
     })
   }
 
@@ -96,7 +95,6 @@ module.exports = function (Adapter) {
   FileSystemAdapter.prototype.update = function (type, updates) {
     var self = this
     var typeDir = path.join(self.options.path, type)
-    var count
 
     return Promise.all(map(updates, function (update) {
       return new Promise(function (resolve, reject) {
@@ -108,11 +106,6 @@ module.exports = function (Adapter) {
       })
     }))
     .then(function () {
-      return DefaultAdapter.prototype.update.call(self, type, updates)
-    })
-    .then(function (result) {
-      count = result
-
       return writeRecords(typeDir, map(updates, function (update) {
         return self.db[type][update[primaryKey]]
       }))
@@ -128,7 +121,9 @@ module.exports = function (Adapter) {
         })
       }))
     })
-    .then(function () { return count })
+    .then(function () {
+      return DefaultAdapter.prototype.update.call(self, type, updates)
+    })
   }
 
 
@@ -136,12 +131,11 @@ module.exports = function (Adapter) {
     var self = this
     var memoizedIds = ids || Object.keys(self.db[type])
 
-    return DefaultAdapter.prototype.delete.call(self, type, ids)
-    .then(function (count) {
-      return writeRecords(
-        path.join(self.options.path, type),
-        memoizedIds)
-      .then(function () { return count })
+    return writeRecords(
+      path.join(self.options.path, type),
+      memoizedIds)
+    .then(function () {
+      return DefaultAdapter.prototype.delete.call(self, type, ids)
     })
   }
 
