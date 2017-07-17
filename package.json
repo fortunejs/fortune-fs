@@ -1,7 +1,7 @@
 {
   "name": "fortune-fs",
   "description": "File system adapter for Fortune.",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -19,9 +19,9 @@
     "msgpack-lite": "^0.1.26"
   },
   "devDependencies": {
-    "eslint": "^4.1.1",
+    "eslint": "^4.2.0",
     "eslint-config-boss": "^1.0.6",
-    "fortune": "^5.2.7",
+    "fortune": "^5.2.8",
     "tapdance": "^5.0.4"
   },
   "eslintConfig": {
