@@ -119,7 +119,7 @@ module.exports = function (Adapter) {
 
     return Promise.all(map(updates, function (update) {
       return new Promise(function (resolve, reject) {
-        var lockPath = path.join(typeDir, update[primaryKey] + '.lock')
+        var lockPath = getLockPath(update[primaryKey])
 
         lockFile.lock(lockPath, function (error) {
           return error ? reject(error) : resolve()
@@ -138,7 +138,7 @@ module.exports = function (Adapter) {
       }))
     }).then(function () {
       return Promise.all(map(updates, function (update) {
-        var lockPath = path.join(typeDir, update[primaryKey] + '.lock')
+        var lockPath = getLockPath(update[primaryKey])
 
         return new Promise(function (resolve, reject) {
           lockFile.unlock(lockPath, function (error) {
@@ -149,6 +149,10 @@ module.exports = function (Adapter) {
     }).then(function () {
       return count
     })
+
+    function getLockPath (id) {
+      return path.join(self.options.path, type + '$' + id + '.lock')
+    }
   }
 
 
