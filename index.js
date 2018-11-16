@@ -29,6 +29,10 @@ module.exports = function (Adapter) {
     map = properties.common.map
   }
 
+  FileSystemAdapter.features = {
+    logicalOperators: true
+  }
+
   FileSystemAdapter.prototype = Object.create(DefaultAdapter.prototype)
 
 
@@ -37,38 +41,17 @@ module.exports = function (Adapter) {
     var dbPath = self.options.path
 
     return DefaultAdapter.prototype.connect.call(self)
-    .then(function () {
-      return Promise.all(map(Object.keys(self.recordTypes), function (type) {
-        return new Promise(function (resolve, reject) {
-          var typeDir = path.join(dbPath, type)
+      .then(function () {
+        return Promise.all(map(Object.keys(self.recordTypes), function (type) {
+          return new Promise(function (resolve, reject) {
+            var typeDir = path.join(dbPath, type)
 
-          mkdirp(typeDir, function (error) {
-            if (error) return reject(error)
-            fs.readdir(typeDir, function (error, files) {
-              return error ? reject(error) : resolve(files)
+            mkdirp(typeDir, function (error) {
+              return error ? reject(error) : resolve()
             })
           })
-        })
-        .then(function (files) {
-          return Promise.all(map(files, function (file) {
-            return new Promise(function (resolve, reject) {
-              var filePath = path.join(dbPath, type, file)
-
-              fs.readFile(filePath, function (error, buffer) {
-                var record
-
-                if (error) return reject(error)
-
-                record = msgpack.decode(buffer)
-                self.db[type][record[primaryKey]] = record
-
-                resolve()
-              })
-            })
-          }))
-        })
-      }))
-    })
+        }))
+      })
   }
 
 
@@ -80,15 +63,52 @@ module.exports = function (Adapter) {
   FileSystemAdapter.prototype.create = function (type, records) {
     var self = this
     return DefaultAdapter.prototype.create.call(self, type, records)
-    .then(function (records) {
-      return writeRecords(path.join(self.options.path, type), records)
-      .then(function () { return records })
-    })
+      .then(function (records) {
+        return writeRecords(path.join(self.options.path, type), records)
+          .then(function () {
+            return records
+          })
+      })
   }
 
 
   FileSystemAdapter.prototype.find = function (type, ids, options) {
-    return DefaultAdapter.prototype.find.call(this, type, ids, options)
+    var self = this
+    var dbPath = self.options.path
+    var typeDir = path.join(dbPath, type)
+
+    if (!('db' in self)) self.db = {}
+
+    return (ids && ids.length ? Promise.resolve(ids) :
+      new Promise(function (resolve, reject) {
+        fs.readdir(typeDir, function (error, files) {
+          return error ? reject(error) : resolve(files)
+        })
+      })
+    ).then(function (files) {
+      return Promise.all(map(files, function (file) {
+        return new Promise(function (resolve, reject) {
+          var filePath = path.join(dbPath, type, '' + file)
+
+          fs.readFile(filePath, function (error, buffer) {
+            var record
+
+            if (error)
+              return error.code === 'ENOENT' ? resolve() : reject(error)
+
+            record = msgpack.decode(buffer)
+
+            if (!(type in self.db)) self.db[type] = {}
+
+            self.db[type][record[primaryKey]] = record
+
+            return resolve()
+          })
+        })
+      }))
+    }).then(function () {
+      return DefaultAdapter.prototype.find.call(self, type, ids, options)
+    })
   }
 
 
@@ -105,17 +125,18 @@ module.exports = function (Adapter) {
           return error ? reject(error) : resolve()
         })
       })
-    }))
-    .then(function () {
+    })).then(function () {
+      return self.find(type, map(updates, function (update) {
+        return update[primaryKey]
+      }))
+    }).then(function () {
       return DefaultAdapter.prototype.update.call(self, type, updates)
-    })
-    .then(function (result) {
+    }).then(function (result) {
       count = result
       return writeRecords(typeDir, map(updates, function (update) {
         return self.db[type][update[primaryKey]]
       }))
-    })
-    .then(function () {
+    }).then(function () {
       return Promise.all(map(updates, function (update) {
         var lockPath = path.join(typeDir, update[primaryKey] + '.lock')
 
@@ -125,21 +146,30 @@ module.exports = function (Adapter) {
           })
         })
       }))
+    }).then(function () {
+      return count
     })
-    .then(function () { return count })
   }
 
 
   FileSystemAdapter.prototype.delete = function (type, ids) {
     var self = this
-    var memoizedIds = ids || Object.keys(self.db[type])
+    var typeDir = path.join(self.options.path, type)
 
-    return DefaultAdapter.prototype.delete.call(self, type, ids)
-    .then(function (count) {
-      return writeRecords(
-        path.join(self.options.path, type),
-        memoizedIds)
-      .then(function () { return count })
+    return (ids ? Promise.resolve(ids) :
+      new Promise(function (resolve, reject) {
+        fs.readdir(typeDir, function (error, files) {
+          return error ? reject(error) : resolve(files)
+        })
+      })
+    ).then(function (memoizedIds) {
+      return DefaultAdapter.prototype.delete.call(self, type, ids)
+        .then(function (count) {
+          return writeRecords(path.join(self.options.path, type), memoizedIds)
+            .then(function () {
+              return count
+            })
+        })
     })
   }
 
@@ -153,9 +183,8 @@ module.exports = function (Adapter) {
         if (typeof record === 'object')
           return writeRecord(typeDir, record).then(resolve, reject)
 
-        fs.unlink(path.join(typeDir, '' + record), resolve)
+        return fs.unlink(path.join(typeDir, '' + record), resolve)
       })
-
     }))
   }
 
