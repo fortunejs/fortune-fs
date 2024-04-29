@@ -15,17 +15,14 @@
   },
   "dependencies": {
     "lockfile": "^1.0.4",
-    "mkdirp": "^0.5.1",
+    "mkdirp": "^3.0.1",
     "msgpack-lite": "^0.1.26"
   },
   "devDependencies": {
-    "eslint": "^5.9.0",
-    "eslint-config-boss": "^1.0.6",
-    "fortune": "^5.5.14",
+    "@stylistic/eslint-plugin-js": "^1.7.2",
+    "eslint": "^9.1.1",
+    "fortune": "^5.5.19",
     "tapdance": "^5.1.1"
-  },
-  "eslintConfig": {
-    "extends": "boss/es5"
   },
   "keywords": [
     "fs",

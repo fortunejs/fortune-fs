@@ -27,6 +27,35 @@ const store = fortune(recordTypes, {
 ```
 
 
+## Options
+
+
+| Option | Default |  |
+| --- | --- | ---|
+| `concurrentReads`| `128` | limits how many files can be read concurrently by `Adapter.find()` |
+
+### Options Example
+
+```js
+const path = require('path')
+const fortune = require('fortune')
+const fsAdapter = require('fortune-fs')
+
+const store = fortune(recordTypes, {
+  adapter: [ fsAdapter, {
+    // Absolute path to database directory.
+    path: path.join(__dirname, 'db'),
+    concurrentReads: 32
+  } ]
+})
+```
+
+
+## Troubleshooting
+
+If you have a large number of records (files), you may encounter `Error: EMFILE: too many open files`. Set the `concurrentReads` [option](#options) to a lower value to resolve this.
+
+
 ## License
 
 This software is licensed under the [MIT license](https://raw.githubusercontent.com/fortunejs/fortune-fs/master/LICENSE).
