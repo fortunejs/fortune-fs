@@ -3,9 +3,14 @@
 var path = require('path')
 var fs = require('fs')
 var msgpack = require('msgpack-lite')
-var mkdirp = require('mkdirp')
+var { mkdirp } = require('mkdirp')
 var lockFile = require('lockfile')
 
+// in benchmarking tests with 124732 records,
+// a concurrency limit of 128 was the sweet spot.
+// lower limits took longer.
+// higher limits caused performance degradation.
+let concurrentReads = 128
 
 /**
  * File system adapter. Available options:
@@ -24,6 +29,13 @@ module.exports = function (Adapter) {
 
     // No LRU, allow as many records as possible.
     delete this.options.recordsPerType
+
+    if(Number.isInteger(this.options.concurrentReads)) {
+      if(this.options.concurrentReads < 1) {
+        throw new RangeError("concurrentReads must be > 0")
+      }
+      concurrentReads = this.options.concurrentReads
+    }
 
     primaryKey = properties.common.constants.primary
     map = properties.common.map
@@ -45,10 +57,7 @@ module.exports = function (Adapter) {
         return Promise.all(map(Object.keys(self.recordTypes), function (type) {
           return new Promise(function (resolve, reject) {
             var typeDir = path.join(dbPath, type)
-
-            mkdirp(typeDir, function (error) {
-              return error ? reject(error) : resolve()
-            })
+            mkdirp(typeDir).then(resolve,reject)
           })
         }))
       })
@@ -85,27 +94,43 @@ module.exports = function (Adapter) {
           return error ? reject(error) : resolve(files)
         })
       })
-    ).then(function (files) {
-      return Promise.all(map(files, function (file) {
-        return new Promise(function (resolve, reject) {
-          var filePath = path.join(dbPath, type, '' + file)
+    ).then(async function (files) {
+      const allThePromises = []
+      let readsInFlight = 0
+      const iterator = files[Symbol.iterator]()
 
-          fs.readFile(filePath, function (error, buffer) {
-            var record
+      while (allThePromises.length < files.length) {
+        if(readsInFlight >= concurrentReads) {
+          // back off
+          await pause(0)
+        }
+        else {
+          allThePromises.push(
+            new Promise(function (resolve, reject) {
+              var filePath = path.join(dbPath, type, '' + iterator.next().value)
+              readsInFlight +=1
 
-            if (error)
-              return error.code === 'ENOENT' ? resolve() : reject(error)
+              fs.readFile(filePath, function (error, buffer) {
+                var record
 
-            record = msgpack.decode(buffer)
+                if (error)
+                  return error.code === 'ENOENT' ? resolve() : reject(error)
 
-            if (!(type in self.db)) self.db[type] = {}
+                record = msgpack.decode(buffer)
 
-            self.db[type][record[primaryKey]] = record
+                if (!(type in self.db)) self.db[type] = {}
 
-            return resolve()
-          })
-        })
-      }))
+                self.db[type][record[primaryKey]] = record
+
+                return resolve()
+              })
+            }).finally(()=>{
+              readsInFlight -=1
+            }))
+        }
+      }
+
+      return Promise.all(allThePromises)
     }).then(function () {
       return DefaultAdapter.prototype.find.call(self, type, ids, options)
     })
@@ -202,4 +227,16 @@ module.exports = function (Adapter) {
         })
     })
   }
+}
+
+/**
+ * Pause for an amount of time
+ * @param {number} ms milliseconds to pause
+ * @returns {promise}
+ * @instance
+ * @example
+ * await pause(1 * 1000); // pause for 1 second
+*/
+function pause(ms) {
+  return new Promise(resolve => { return setTimeout(resolve, ms) })
 }
