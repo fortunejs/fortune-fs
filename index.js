@@ -116,7 +116,16 @@ module.exports = function (Adapter) {
                 if (error)
                   return error.code === 'ENOENT' ? resolve() : reject(error)
 
-                record = msgpack.decode(buffer)
+                if(buffer.length === 0) {
+                  return reject(new Error(`Decode record failed. File is empty: ${filePath}`))
+                }
+                else {
+                  try {
+                    record = msgpack.decode(buffer)
+                  } catch (e) {
+                    return reject(new Error(`Decode record failed. File is corrupt: ${filePath}`, { cause: e }))
+                  }
+                }
 
                 if (!(type in self.db)) self.db[type] = {}
 

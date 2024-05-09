@@ -11,7 +11,7 @@
     "lint": "eslint index.js",
     "postpublish": "npm run tag",
     "tag": "git tag `npm v fortune-fs version` && git push origin --tags",
-    "test": "npm run lint && node test.js"
+    "test": "npm run lint && node test/test.js"
   },
   "dependencies": {
     "lockfile": "^1.0.4",
