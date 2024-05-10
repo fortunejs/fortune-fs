@@ -52,15 +52,19 @@ run((assert, comment) => {
       schema,
       { adapter: [fsAdapter] })
 
+    const emptyID = 1
+    const validID = 3
+    const corruptID = 6
+
     fs.mkdirSync(`db/${type}`, { recursive: true })
-    fs.copyFileSync('test/empty-file', `db/${type}/1`)
-    fs.copyFileSync('test/valid-file', `db/${type}/3`)
-    fs.copyFileSync('test/corrupt-file', `db/${type}/6`)
+    fs.copyFileSync('test/empty-file', `db/${type}/${emptyID}`)
+    fs.copyFileSync('test/valid-file', `db/${type}/${validID}`)
+    fs.copyFileSync('test/corrupt-file', `db/${type}/${corruptID}`)
 
     let error = null
 
     try {
-      await store.find(type, [1])
+      await store.find(type, [emptyID])
     } catch (e) {
       error = e
     }
@@ -70,16 +74,38 @@ run((assert, comment) => {
     error = null
 
     try {
-      await store.find(type, [6])
+      await store.find(type, [corruptID])
     } catch (e) {
       error = e
     }
 
     assert(error.message.includes('Decode record failed. File is corrupt'), `corrupt error message is present ${error.message}`)
 
-    const result = await store.find(type, [3])
+    let result = await store.find(type, [validID])
     assert(result.payload.records.length === 1, 'valid record is found')
 
+    error = null
+
+    try {
+      await store.update(type, [{ id: emptyID }])
+    } catch (e) {
+      error = e
+    }
+
+    assert(error, 'trying to update an empty file fails: ' + error)
+
+    error = null
+
+    try {
+      await store.update(type, [{ id: corruptID }])
+    } catch (e) {
+      error = e
+    }
+
+    assert(error, 'trying to update a corrupt file fails: ' + error)
+
+    result = await store.create(type, [{ id: emptyID }, {id: corruptID}])
+    assert(result.payload.records.length === 2, 'successfully replaced empty and corrupt files via store.create()')
   })
 
 })()
