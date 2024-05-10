@@ -1,11 +1,11 @@
 {
   "name": "fortune-fs",
   "description": "File system adapter for Fortune.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git@github.com:fortunejs/fortune-fs.git"
+    "url": "git+ssh://git@github.com/fortunejs/fortune-fs.git"
   },
   "scripts": {
     "lint": "eslint index.js",
@@ -24,6 +24,9 @@
     "fortune": "^5.5.19",
     "tapdance": "^5.1.1"
   },
+  "files": [
+    "index.js"
+  ],
   "keywords": [
     "fs",
     "adapter"
